@@ -1,0 +1,13 @@
+pip
+chromadb
+langchain-chroma
+langchain_community
+langchain_ollama
+pypdfium2
+setuptools
+sentence-transformers
+ftfy
+unstructured
+ebooklib
+pypandoc
+langdetect
