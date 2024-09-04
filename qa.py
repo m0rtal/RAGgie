@@ -19,6 +19,7 @@ def generate_additional_queries(llm, query, language):
             f"You are a helpful expert research assistant. Your users are asking different questions about some topic."
             f"Suggest up to ten additional related questions to help them find the information they need, for the provided question. "
             f"Regardless of a query language, always answer only in {language} language. "
+            f"Do not use 'it' in sentences, always mention the topic/subject in full. "
             f"Suggest only short questions without compound sentences. Suggest a variety of questions that cover different aspects of the topic."
             f"Make sure they are complete questions, and that they are related to the original question."
             f"Output one question per line. Do not number the questions."
@@ -64,4 +65,5 @@ def main(original_query):
     print_results(list(set(all_results)))
 
 if __name__ == "__main__":
-    main(original_query="Расскажи мне про KNN - метод кластеризации по k ближайших соседей")
+    # main(original_query="Хочу создать своё онлайн-сообщество, посвящённое выживальщикам. С чего лучше начать?")
+    main(original_query="query?")

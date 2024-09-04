@@ -8,6 +8,7 @@ import logging
 import ftfy  # Подключаем ftfy для исправления текста
 from langdetect import detect, LangDetectException
 import re
+from tqdm import tqdm
 
 # Инициализация логгера
 logging.basicConfig(level=logging.INFO)
@@ -89,11 +90,6 @@ def process_file(file_path, collection, file_type):
         # Генерация уникального идентификатора для файла
         file_id = os.path.basename(file_path)
 
-        # Проверка, был ли файл уже обработан
-        if is_file_processed(file_id):
-            logger.info(f"File {file_id} has already been processed.")
-            return
-
         # Генерация идентификаторов для чанков
         ids = [f"{file_id}_{i}" for i in range(len(valid_chunks))]
 
@@ -106,12 +102,20 @@ def process_file(file_path, collection, file_type):
         logger.error(f"Error processing file {file_path}: {e}")
 
 # Рекурсивный обход всех файлов в папке и её подкаталогах
+file_list = []
 for root, dirs, files in os.walk(folder_path):
     for filename in files:
         file_path = os.path.join(root, filename)
-        if filename.lower().endswith(".pdf"):
-            process_file(file_path, chroma_collection, 'pdf')
-        elif filename.lower().endswith(".epub"):
-            process_file(file_path, chroma_collection, 'epub')
+        if filename.lower().endswith(".pdf") or filename.lower().endswith(".epub"):
+            file_id = os.path.basename(file_path)
+            if not is_file_processed(file_id):
+                file_list.append(file_path)
+
+# Обработка файлов с использованием tqdm для отслеживания прогресса
+for file_path in tqdm(file_list, desc="Processing files"):
+    if file_path.lower().endswith(".pdf"):
+        process_file(file_path, chroma_collection, 'pdf')
+    elif file_path.lower().endswith(".epub"):
+        process_file(file_path, chroma_collection, 'epub')
 
 logger.info("Все файлы обработаны и добавлены в коллекцию.")

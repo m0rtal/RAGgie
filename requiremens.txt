@@ -11,3 +11,4 @@ unstructured
 ebooklib
 pypandoc
 langdetect
+tqdm

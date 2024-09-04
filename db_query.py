@@ -61,6 +61,3 @@ def rank_documents(query, documents, cross_encoder_model="cross-encoder/ms-marco
     top_documents = [doc for score, doc in combined_scores[:return_num]]
 
     return top_documents
-
-if __name__ == "__main__":
-    print_results(perform_query(["How to create your own community?"]))
