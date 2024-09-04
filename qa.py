@@ -65,5 +65,4 @@ def main(original_query):
     print_results(list(set(all_results)))
 
 if __name__ == "__main__":
-    # main(original_query="Хочу создать своё онлайн-сообщество, посвящённое выживальщикам. С чего лучше начать?")
     main(original_query="query?")
