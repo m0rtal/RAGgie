@@ -53,11 +53,13 @@ def main(original_query):
     # Выполнение англоязычных запросов и сохранение результатов
     english_queries = [translated_query] + additional_english_queries
     english_results = perform_query(english_queries, n_results=10)
+    english_results = [res for res in english_results if res is not None]
     english_ranked_results = rank_documents(translated_query, english_results, return_num=5)
 
     # Выполнение русскоязычных запросов и добавление результатов
     russian_queries = [original_query] + additional_russian_queries
     russian_results = perform_query(russian_queries, n_results=10)
+    russian_results = [res for res in russian_results if res is not None]
     russian_ranked_results = rank_documents(original_query, russian_results, return_num=5)
 
     # Вывод результатов
@@ -65,4 +67,4 @@ def main(original_query):
     print_results(list(set(all_results)))
 
 if __name__ == "__main__":
-    main(original_query="query?")
+    main(original_query="Test query")
