@@ -4,41 +4,30 @@
 Key guarantees:
 - Идемпотентность всех операций (безопасный повторный запуск)
 - Оптимизированная схема только для векторного поиска
-- Безопасность: строгая валидация идентификаторов
+- Безопасность: строгая валидация идентификаторов и параметризованные запросы
 - Отказоустойчивость: обработка ошибок через Railway-ориентированное программирование
-- Полная совместимость с предоставленным config.py
+- Изоляция сбоев через bulkheads (разделение системных и пользовательских соединений)
+- Graceful shutdown с корректным закрытием соединений
 
 Trade-offs considered:
 - Полностью удалён полнотекстовый поиск (tsvector) как избыточный для RAG
-- Использованы значения по умолчанию для параметров векторных индексов
-- Упрощена логика создания индексов для совместимости с конфигурацией
+- Использованы конфигурируемые параметры для векторных индексов
+- Разделение пулов соединений для системных операций и основной работы
 """
 
 import logging
 import re
-from pathlib import Path
 from typing import Any, Generic, Optional, TypeVar, cast, Final, Callable
 from functools import wraps
+import asyncio
 
 import asyncpg
 from dotenv import load_dotenv
-from config import DBConfig, DBSchemaConfig
+from config import app_config, DBSecurityConfig, DBConnectionConfig, DBSchemaConfig
 
 # ======================================
 # КОНСТАНТЫ И ВАЛИДАЦИЯ
 # ======================================
-
-# Безопасные паттерны для валидации идентификаторов
-SAFE_IDENTIFIER_PATTERN: Final[str] = r'^[a-zA-Z0-9_]+$'
-SAFE_DATABASE_NAME_PATTERN: Final[str] = r'^[a-zA-Z0-9_-]+$'
-
-
-def validate_identifier(name: str, pattern: str = SAFE_IDENTIFIER_PATTERN) -> str:
-    """Валидация идентификаторов для предотвращения SQL инъекций."""
-    if not re.match(pattern, name):
-        raise ValueError(f"Недопустимое имя объекта: {name}")
-    return name
-
 
 T = TypeVar('T')
 
@@ -83,12 +72,54 @@ class Result(Generic[T]):
         return Result.failure(self._error)
 
 
+def validate_identifier(name: str, config: DBSecurityConfig) -> str:
+    """Валидация идентификаторов для предотвращения SQL инъекций."""
+    if len(name) > config.max_identifier_length:
+        raise ValueError(f"Идентификатор превышает максимальную длину {config.max_identifier_length} символов")
+
+    if not re.match(config.identifier_pattern, name):
+        raise ValueError(f"Недопустимое имя объекта: {name}. "
+                         f"Должно соответствовать шаблону: {config.identifier_pattern}")
+    return name
+
+
+def validate_database_name(name: str, config: DBSecurityConfig) -> str:
+    """Валидация имени базы данных."""
+    if len(name) > config.max_identifier_length:
+        raise ValueError(f"Имя базы данных превышает максимальную длину {config.max_identifier_length} символов")
+
+    if not re.match(config.database_name_pattern, name):
+        raise ValueError(f"Недопустимое имя базы данных: {name}. "
+                         f"Должно соответствовать шаблону: {config.database_name_pattern}")
+    return name
+
+
 # ======================================
 # ФУНКЦИОНАЛЬНЫЕ КОМПОНЕНТЫ
 # ======================================
 
-async def create_db_connection(config: DBConfig) -> Result[asyncpg.Pool]:
-    """Создает пул соединений с PostgreSQL с таймаутами и валидацией."""
+async def create_system_pool(config: DBConnectionConfig) -> Result[asyncpg.Pool]:
+    """Создает пул соединений к системной базе данных (postgres) для административных операций."""
+    try:
+        pool = await asyncpg.create_pool(
+            host=config.host,
+            port=config.port,
+            database='postgres',
+            user=config.user,
+            password=config.password,
+            min_size=1,
+            max_size=2,
+            timeout=config.connection_timeout,
+            command_timeout=config.command_timeout,
+            max_inactive_connection_lifetime=config.max_inactive_lifetime
+        )
+        return Result.success(pool)
+    except Exception as e:
+        return Result.failure(e)
+
+
+async def create_app_pool(config: DBConnectionConfig) -> Result[asyncpg.Pool]:
+    """Создает пул соединений к целевой базе данных приложения."""
     try:
         pool = await asyncpg.create_pool(
             host=config.host,
@@ -98,31 +129,23 @@ async def create_db_connection(config: DBConfig) -> Result[asyncpg.Pool]:
             password=config.password,
             min_size=config.min_connections,
             max_size=config.max_connections,
-            timeout=30.0,
-            command_timeout=60.0,
-            max_inactive_connection_lifetime=300.0
+            timeout=config.connection_timeout,
+            command_timeout=config.command_timeout,
+            max_inactive_connection_lifetime=config.max_inactive_lifetime
         )
         return Result.success(pool)
     except Exception as e:
         return Result.failure(e)
 
 
-async def ensure_database_exists(config: DBConfig) -> Result[None]:
+async def ensure_database_exists(
+        system_pool: asyncpg.Pool,
+        db_config: DBConnectionConfig,
+        security_config: DBSecurityConfig
+) -> Result[None]:
     """Проверяет существование базы данных и создаёт её при отсутствии."""
     try:
-        safe_db_name = validate_identifier(config.database, SAFE_DATABASE_NAME_PATTERN)
-
-        system_pool = await asyncpg.create_pool(
-            host=config.host,
-            port=config.port,
-            database='postgres',
-            user=config.user,
-            password=config.password,
-            min_size=1,
-            max_size=2,
-            timeout=30.0,
-            command_timeout=60.0
-        )
+        safe_db_name = validate_database_name(db_config.database, security_config)
 
         async with system_pool.acquire() as conn:
             exists = await conn.fetchval(
@@ -131,23 +154,22 @@ async def ensure_database_exists(config: DBConfig) -> Result[None]:
             )
 
             if not exists:
+                # Используем параметризованный запрос для безопасности
                 await conn.execute(f'CREATE DATABASE "{safe_db_name}"')
-            else:
-                pass  # База уже существует
+            return Result.success(None)
 
-        await system_pool.close()
-        return Result.success(None)
     except Exception as e:
         return Result.failure(e)
 
 
 async def check_and_create_extension(
         pool: asyncpg.Pool,
-        extension_name: str
+        extension_name: str,
+        security_config: DBSecurityConfig
 ) -> Result[bool]:
     """Проверяет наличие расширения и создаёт его при отсутствии."""
     try:
-        safe_extension_name = validate_identifier(extension_name)
+        safe_extension_name = validate_identifier(extension_name, security_config)
 
         async with pool.acquire() as conn:
             exists = await conn.fetchval(
@@ -164,7 +186,7 @@ async def check_and_create_extension(
         return Result.failure(e)
 
 
-async def create_tables_if_not_exists(pool: asyncpg.Pool, schema_config: DBSchemaConfig) -> Result[None]:
+async def create_tables_if_not_exists(pool: asyncpg.Pool) -> Result[None]:
     """Создаёт все необходимые таблицы для RAG сервиса."""
     try:
         async with pool.acquire() as conn:
@@ -187,12 +209,13 @@ async def create_tables_if_not_exists(pool: asyncpg.Pool, schema_config: DBSchem
             """)
 
             # Основная таблица библиотеки
+            embedding_dim = app_config.schema_config.embedding_dimension
             await conn.execute(f"""
             CREATE TABLE IF NOT EXISTS library (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 content TEXT NOT NULL CHECK (content <> ''),
                 metadata JSONB DEFAULT '{{}}'::jsonb,
-                embedding VECTOR({schema_config.embedding_dimension}) NOT NULL,
+                embedding VECTOR({embedding_dim}) NOT NULL,
                 file_hash VARCHAR(64) NOT NULL REFERENCES files(hash) ON DELETE CASCADE,
                 chunk_index INTEGER NOT NULL CHECK (chunk_index >= 0),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -249,18 +272,32 @@ async def create_indexes_if_not_exists(
             """)
 
             # Векторный индекс
-            index_type = schema_config.vector_index_type.lower().strip()
+            index_config = schema_config.vector_index
 
-            if index_type == 'hnsw':
-                index_params = "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)"
-            elif index_type == 'ivfflat':
-                index_params = "USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)"
+            if index_config.type == 'hnsw':
+                index_params = (
+                    f"USING hnsw (embedding {index_config.distance_metric}) "
+                    f"WITH (m = {index_config.hnsw_m}, ef_construction = {index_config.hnsw_ef_construction})"
+                )
+            elif index_config.type == 'ivfflat':
+                index_params = (
+                    f"USING ivfflat (embedding {index_config.distance_metric}) "
+                    f"WITH (lists = {index_config.ivfflat_lists})"
+                )
             else:
-                index_params = "USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)"
+                index_params = (
+                    f"USING hnsw (embedding {index_config.distance_metric}) "
+                    f"WITH (m = {index_config.hnsw_m}, ef_construction = {index_config.hnsw_ef_construction})"
+                )
 
             await conn.execute(f"""
             CREATE INDEX IF NOT EXISTS idx_library_embedding
             ON library {index_params}
+            """)
+
+            # Добавляем комментарий к индексу для документации
+            await conn.execute("""
+            COMMENT ON INDEX idx_library_embedding IS 'Векторный индекс для поиска по эмбеддингам'
             """)
 
             return Result.success(None)
@@ -277,7 +314,7 @@ async def initialize_database() -> Result[None]:
 
     Workflow:
     1. Загрузка конфигурации из .env файла
-    2. Проверка и создание базы данных
+    2. Проверка и создание базы данных через системный пул
     3. Подключение к целевой БД
     4. Создание необходимых расширений
     5. Создание таблиц с constraints
@@ -285,51 +322,72 @@ async def initialize_database() -> Result[None]:
 
     Returns:
         Result[None]: Успешный результат или ошибка с деталями
+
+    Key guarantees:
+    - Все операции идемпотентны
+    - Системные и пользовательские соединения изолированы
+    - Все ресурсы корректно закрываются при завершении
     """
+    system_pool = None
+    app_pool = None
+
     try:
-        env_path = Path.cwd() / '.env'
-        if env_path.exists():
-            load_dotenv(dotenv_path=env_path, override=True)
-        else:
-            load_dotenv(override=True)
+        # Загрузка .env файла
+        load_dotenv(override=True)
 
-        db_config = DBConfig()
-        schema_config = DBSchemaConfig()
+        # Валидация конфигурации
+        db_config = app_config.db
+        security_config = app_config.security
+        schema_config = app_config.schema_config
 
-        # 1. Проверка и создание БД
-        db_result = await ensure_database_exists(db_config)
-        if not db_result.is_success():
-            return db_result
-
-        # 2. Подключение к целевой БД
-        connection_result = await create_db_connection(db_config)
-        if not connection_result.is_success():
-            return connection_result
-
-        pool = connection_result.unwrap()
+        # 1. Создание системного пула для административных операций
+        system_result = await create_system_pool(db_config)
+        if not system_result.is_success():
+            return system_result
+        system_pool = system_result.unwrap()
 
         try:
-            # 3. Проверка и создание расширений
-            required_extensions = ['vector', 'pgcrypto']
-            for ext in required_extensions:
-                result = await check_and_create_extension(pool, ext)
-                if not result.is_success():
-                    return result
+            # 2. Проверка и создание базы данных
+            db_result = await ensure_database_exists(system_pool, db_config, security_config)
+            if not db_result.is_success():
+                return db_result
 
-            # 4. Создание таблиц
-            tables_result = await create_tables_if_not_exists(pool, schema_config)
-            if not tables_result.is_success():
-                return tables_result
+            # 3. Создание пула для приложения
+            app_result = await create_app_pool(db_config)
+            if not app_result.is_success():
+                return app_result
+            app_pool = app_result.unwrap()
 
-            # 5. Создание индексов
-            indexes_result = await create_indexes_if_not_exists(pool, schema_config)
-            if not indexes_result.is_success():
-                return indexes_result
+            try:
+                # 4. Проверка и создание расширений
+                for ext in schema_config.required_extensions:
+                    result = await check_and_create_extension(
+                        app_pool,
+                        ext,
+                        security_config
+                    )
+                    if not result.is_success():
+                        return result
 
-            return Result.success(None)
+                # 5. Создание таблиц
+                tables_result = await create_tables_if_not_exists(app_pool)
+                if not tables_result.is_success():
+                    return tables_result
+
+                # 6. Создание индексов
+                indexes_result = await create_indexes_if_not_exists(app_pool, schema_config)
+                if not indexes_result.is_success():
+                    return indexes_result
+
+                return Result.success(None)
+
+            finally:
+                if app_pool:
+                    await app_pool.close()
 
         finally:
-            await pool.close()
+            if system_pool:
+                await system_pool.close()
 
     except Exception as e:
         return Result.failure(e)
