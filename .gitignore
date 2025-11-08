@@ -1,0 +1,379 @@
+# ========================
+# ЧУВСТВИТЕЛЬНЫЕ ДАННЫЕ
+# ========================
+
+# Конфигурация и секреты
+.env
+.env.*
+*.env
+.envrc
+.env.local
+.env.development
+.env.staging
+.env.production
+.env.test
+.secrets
+.secrets.*
+config/secrets.yml
+config/secrets.json
+
+# Ключи и сертификаты
+*.key
+*.pem
+*.pfx
+*.p12
+*.crt
+*.cert
+*.der
+*.jks
+*.keystore
+*.p7b
+*.p7c
+*.p7s
+*.p7m
+*.p7r
+*.spc
+*.sst
+
+# AWS/GCP/Azure credentials
+.aws/
+.gcp/
+.azure/
+credentials
+.config/gcloud/
+.config/azure/
+.config/aws/
+
+# Docker secrets
+docker/secrets/
+secrets/
+
+# ========================
+# ВИРТУАЛЬНОЕ ОКРУЖЕНИЕ
+# ========================
+
+# Python virtual environments
+venv/
+.venv/
+env/
+.ENV/
+ENV/
+env.bak/
+venv.bak/
+
+# Pyenv
+.pyenv/
+.pyenv-version
+
+# Conda
+conda-meta/
+conda-bld/
+conda-recipes/
+conda-envs/
+
+# Poetry
+poetry.lock
+poetry.toml
+.poetry/
+
+# Pip
+pip-log.txt
+pip-wheel-metadata/
+wheelhouse/
+
+# ========================
+# ВРЕМЕННЫЕ ФАЙЛЫ И КЕШ
+# ========================
+
+# IDE и редакторы
+.idea/
+.vscode/
+.vs/
+*.swp
+*.swo
+*.swn
+*.tmp
+*~
+.*.swp
+.*.swo
+tags
+TAGS
+cscope.*
+Session.vim
+.netrwhist
+.history
+.fuse_hidden*
+
+# ОС-специфичные файлы
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+lost+found/
+*.crdownload
+*.part
+
+# Кеш сборки
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+.build/
+dist/
+build/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+notebooks/.ipynb_checkpoints/
+
+# ========================
+# ЛОГИ И ДАННЫЕ
+# ========================
+
+# Логи приложения
+*.log
+*.log.*
+logs/
+log/
+*.log.gz
+*.log.bz2
+*.log.xz
+*.log.zst
+
+# Специфичные для RAG логи
+db_init.log
+rag_indexer.log
+vectorizer.log
+chunk_processor.log
+embedding_service.log
+
+# Временные данные
+/tmp/
+/temp/
+*.tmp
+*.temp
+*.pid
+*.lock
+
+# Базы данных (локальные)
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+*.db-shm
+*.db-wal
+pgdata/
+postgres_data/
+
+# ========================
+# СБОРКА И РАЗВЕРТЫВАНИЕ
+# ========================
+
+# Docker
+.dockerignore
+.dockerenv
+.dockerinit
+
+# Kubernetes
+*.kubeconfig
+.kube/config
+.kube/cache/
+.kube/http-cache/
+
+# CI/CD
+.circleci/
+.github/workflows/
+.gitlab-ci.yml
+.jenkins/
+.travis.yml
+.appveyor.yml
+.azure-pipelines/
+
+# Артефакты сборки
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.iso
+*.dmg
+*.msi
+*.apk
+*.exe
+*.bin
+*.out
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# ========================
+# СПЕЦИФИЧНОЕ ДЛЯ RAG
+# ========================
+
+# Эмбеддинги и векторные данные
+embeddings/
+vectors/
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.parquet
+*.feather
+*.arrow
+
+# Кэш обработки документов
+document_cache/
+chunks_cache/
+processed_files/
+failed_chunks/
+
+# Векторные индексы (локальные)
+*.hnsw
+*.ivfflat
+*.ann
+*.index
+vector_index/
+index_cache/
+
+# ========================
+# ТЕСТЫ И ПОКРЫТИЕ
+# ========================
+
+# Покрытие кода
+.coverage
+.coverage.*
+htmlcov/
+.coveragerc
+nosetests.xml
+coverage.xml
+*.cover
+
+# Pytest
+.pytest_cache/
+pytest_cache/
+pytest_report.xml
+junit.xml
+
+# Тестовые данные
+tests/__pycache__/
+tests/*.py[cod]
+tests/data/
+tests/fixtures/
+tests/reports/
+
+# ========================
+# ДОКУМЕНТАЦИЯ
+# ========================
+
+# Sphinx
+docs/_build/
+docs/_static/
+docs/_templates/
+docs/api/
+docs/*.html
+docs/*.json
+docs/*.js
+docs/*.css
+docs/*.png
+docs/*.jpg
+docs/*.svg
+docs/*.pdf
+
+# MkDocs
+site/
+
+# ========================
+# ПРОЧЕЕ
+# ========================
+
+# Глобальные паттерны
+*~
+.*.swp
+.*.swo
+Session.vim
+.netrwhist
+
+# Файлы с пробелами и спецсимволами
+*"
+*"
+*
+*
+
+# Файлы, начинающиеся с точки
+.*
+!.gitignore
+!.env.example
+!.dockerignore
+!.gitattributes
+!.editorconfig
+!.pre-commit-config.yaml
+
+# ========================
+# РЕКОМЕНДАЦИИ ПО БЕЗОПАСНОСТИ
+# ========================
+#
+# 1. Всегда создавайте .env.example с примерами параметров (без значений):
+#    DB_HOST=your_host
+#    DB_PORT=5432
+#    DB_DATABASE=your_db
+#    DB_USER=your_user
+#    DB_PASSWORD=your_password
+#
+# 2. Используйте pre-commit хуки для проверки секретов:
+#    pip install pre-commit pre-commit-hooks detect-secrets
+#    pre-commit install
+#
+# 3. Для production используйте secrets management:
+#    - HashiCorp Vault
+#    - AWS Secrets Manager
+#    - Kubernetes Secrets (с шифрованием etcd)
+#
+# 4. Регулярно проверяйте репозиторий на утечки:
+#    git-secrets --scan -r
+#    trufflehog git file://.
+#
+# 5. Для CI/CD используйте environment variables вместо файлов
+#
+# ========================
+# ПРИМЕР .ENV.EXAMPLE
+# ========================
+#
+# # .env.example
+# # КОНФИГУРАЦИЯ БАЗЫ ДАННЫХ
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_DATABASE=rag_db
+# DB_USER=postgres
+# DB_PASSWORD=your_secure_password_here
+#
+# DB_MIN_CONNECTIONS=1
+# DB_MAX_CONNECTIONS=10
+#
+# # КОНФИГУРАЦИЯ СХЕМЫ
+# SCHEMA__EMBEDDING_DIMENSION=1536
+# SCHEMA__VECTOR_INDEX__INDEX_TYPE=hnsw
+#
+# # ЛОГИРОВАНИЕ
+# LOG_LEVEL=INFO
+# LOG_FILE_PATH=db_init.log
+#
+# # СИСТЕМНЫЕ ПАРАМЕТРЫ
+# ENVIRONMENT=development
+# SHUTDOWN_TIMEOUT=30.0

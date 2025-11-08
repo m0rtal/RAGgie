@@ -1,0 +1,26 @@
+# Основные зависимости
+asyncpg
+python-dotenv
+pydantic
+pydantic-settings
+tenacity
+
+# Для работы с векторами (только клиентская часть)
+pgvector
+
+# Дополнительные зависимости для production
+structlog
+aiohttp
+prometheus-client
+
+# Для разработки и тестирования
+pytest
+pytest-asyncio
+pytest-mock
+black
+mypy
+ruff
+
+# Требования для работы с PostgreSQL
+# ВАЖНО: pgvector расширение нужно установить в саму PostgreSQL отдельно!
+# CREATE EXTENSION IF NOT EXISTS vector;
